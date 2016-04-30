@@ -74,6 +74,7 @@ Of note to the developer, libjs.gif contains a class SuperGif, which can be used
 
 #### getters
 * **get_canvas** - The canvas element that the gif is playing in. Handy for assigning event handlers to.
+* **get_frames** - The list of frames objects, containing an `ImageData` instance and a `delay` amount.
 * **get_playing** - Whether or not the gif is currently playing
 * **get_loading** - Whether or not the gif has finished loading/parsing
 * **get\_auto_play** - Whether or not the gif is set to play automatically
