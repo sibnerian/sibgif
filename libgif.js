@@ -799,6 +799,7 @@
                 playing: playing,
                 move_relative: stepFrame,
                 current_frame: function() { return i; },
+                frames: function() { return frames },
                 length: function() { return frames.length },
                 move_to: function ( frame_idx ) {
                     i = frame_idx;
@@ -917,6 +918,7 @@
             move_to: player.move_to,
 
             // getters for instance vars
+            get_frames       : function() { return player.frames() },
             get_playing      : function() { return playing },
             get_canvas       : function() { return canvas },
             get_canvas_scale : function() { return get_canvas_scale() },
