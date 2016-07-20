@@ -1,0 +1,22 @@
+{
+  "name": "sibgif",
+  "version": "1.0.0",
+  "description": "A library for manipulating GIFs in the browser.",
+  "main": "libgif.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buzzfeed/libgif-js.git"
+  },
+  "keywords": [
+    "gif"
+  ],
+  "author": "Ian Sibner",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/buzzfeed/libgif-js/issues"
+  },
+  "homepage": "https://github.com/buzzfeed/libgif-js#readme"
+}
