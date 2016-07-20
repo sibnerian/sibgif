@@ -530,8 +530,10 @@
             div.appendChild(canvas);
             div.appendChild(toolbar);
 
-            parent.insertBefore(div, gif);
-            parent.removeChild(gif);
+            if (parent) {
+                parent.insertBefore(div, gif);
+                parent.removeChild(gif);
+            }
 
             if (options.c_w && options.c_h) setSizes(options.c_w, options.c_h);
             initialized=true;

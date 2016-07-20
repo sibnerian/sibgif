@@ -28,14 +28,28 @@ var parseGIF = function (st, handler) {
     };
 
     var readSubBlocks = function () {
-        var size, data;
-        data = '';
+        var size, data, offset = 0;
+        var bufsize = 8192;
+        data = new Uint8Array(bufsize);
+
+        var resizeBuffer = function() { 
+            var newdata = new Uint8Array(data.length + bufsize);
+            newdata.set(data);
+            data = newdata;
+        }
+
         do {
             size = st.readByte();
-            data += st.read(size);
+
+            // Increase buffer size if this would exceed our current size
+            while (offset + size > data.length) resizeBuffer();
+            data.set(st.readBytes(size), offset);
+            offset += size;
         } while (size !== 0);
-        return data;
+        return data.subarray(0, offset); // truncate any excess buffer space
     };
+
+
 
     var parseHeader = function () {
         var hdr = {};
