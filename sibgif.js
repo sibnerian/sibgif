@@ -3,7 +3,7 @@
 
 	Example usage:
 
-		<img src="./example1_preview.gif" rel:animated_src="./example1.gif" width="360" height="360" rel:auto_play="1" />
+		<img src="./example1_preview.gif" data-animated-src="./example1.gif" width="360" height="360" data-autoplay="1" />
 
 		<script type="text/javascript">
 			$$('img').each(function (img_tag) {
@@ -16,27 +16,29 @@
 
 	Image tag attributes:
 
-		rel:animated_src -	If this url is specified, it's loaded into the player instead of src.
+		data-animated-src -	If this url is specified, it's loaded into the player instead of src.
 							This allows a preview frame to be shown until animated gif data is streamed into the canvas
 
-		rel:auto_play -		Defaults to 1 if not specified. If set to zero, a call to the play() method is needed
+		data-autoplay -		Defaults to 1 if not specified. If set to zero, a call to the play() method is needed
 
 	Constructor options args
 
 		gif 				Required. The DOM element of an img tag.
 		loop_mode			Optional. Setting this to false will force disable looping of the gif.
-		auto_play 			Optional. Same as the rel:auto_play attribute above, this arg overrides the img tag info.
+		auto_play 			Optional. Same as the data-autoplay attribute above, this arg overrides the img tag info.
 		max_width			Optional. Scale images over max_width down to max_width. Helpful with mobile.
  		on_end				Optional. Add a callback for when the gif reaches the end of a single loop (one iteration). The first argument passed will be the gif HTMLElement.
 		loop_delay			Optional. The amount of time to pause (in ms) after each single loop (iteration).
 		draw_while_loading	Optional. Determines whether the gif will be drawn to the canvas whilst it is loaded.
 		show_progress_bar	Optional. Only applies when draw_while_loading is set to true.
+        includeDataURL      Optional. Setting this to true will include the dataURL property in each frame object.
 
 	Instance methods
 
 		// loading
-		load( callback )		Loads the gif specified by the src or rel:animated_src sttributie of the img tag into a canvas element and then calls callback if one is passed
-		load_url( src, callback )	Loads the gif file specified in the src argument into a canvas element and then calls callback if one is passed
+		load( callback )		Loads the gif specified by the src or data-animated-src sttributie of the img tag into a canvas element and then calls callback if one is passed. See below for callback arguments.
+		load_url( src, callback )	Loads the gif file specified in the src argument into a canvas element and then calls callback if one is passed.
+                                    The callback will have two arguments: the load error (if one occurred, otherwise undefined/null) and the gif HTML element.
 
 		// play controls
 		play -				Start playing the gif
@@ -71,354 +73,10 @@
         root.SuperGif = factory();
     }
 }(this, function () {
-    // Generic functions
-    var bitsToNum = function (ba) {
-        return ba.reduce(function (s, n) {
-            return s * 2 + n;
-        }, 0);
-    };
-
-    var byteToBitArr = function (bite) {
-        var a = [];
-        for (var i = 7; i >= 0; i--) {
-            a.push( !! (bite & (1 << i)));
-        }
-        return a;
-    };
-
-    // Stream
-    /**
-     * @constructor
-     */
-    // Make compiler happy.
-    var Stream = function (data) {
-        this.data = data;
-        this.len = this.data.length;
-        this.pos = 0;
-
-        this.readByte = function () {
-            if (this.pos >= this.data.length) {
-                throw new Error('Attempted to read past end of stream.');
-            }
-            if (data instanceof Uint8Array)
-                return data[this.pos++];
-            else
-                return data.charCodeAt(this.pos++) & 0xFF;
-        };
-
-        this.readBytes = function (n) {
-            var bytes = [];
-            for (var i = 0; i < n; i++) {
-                bytes.push(this.readByte());
-            }
-            return bytes;
-        };
-
-        this.read = function (n) {
-            var s = '';
-            for (var i = 0; i < n; i++) {
-                s += String.fromCharCode(this.readByte());
-            }
-            return s;
-        };
-
-        this.readUnsigned = function () { // Little-endian.
-            var a = this.readBytes(2);
-            return (a[1] << 8) + a[0];
-        };
-    };
-
-    var lzwDecode = function (minCodeSize, data) {
-        // TODO: Now that the GIF parser is a bit different, maybe this should get an array of bytes instead of a String?
-        var pos = 0; // Maybe this streaming thing should be merged with the Stream?
-        var readCode = function (size) {
-            var code = 0;
-            for (var i = 0; i < size; i++) {
-                if (data.charCodeAt(pos >> 3) & (1 << (pos & 7))) {
-                    code |= 1 << i;
-                }
-                pos++;
-            }
-            return code;
-        };
-
-        var output = [];
-
-        var clearCode = 1 << minCodeSize;
-        var eoiCode = clearCode + 1;
-
-        var codeSize = minCodeSize + 1;
-
-        var dict = [];
-
-        var clear = function () {
-            dict = [];
-            codeSize = minCodeSize + 1;
-            for (var i = 0; i < clearCode; i++) {
-                dict[i] = [i];
-            }
-            dict[clearCode] = [];
-            dict[eoiCode] = null;
-
-        };
-
-        var code;
-        var last;
-
-        while (true) {
-            last = code;
-            code = readCode(codeSize);
-
-            if (code === clearCode) {
-                clear();
-                continue;
-            }
-            if (code === eoiCode) break;
-
-            if (code < dict.length) {
-                if (last !== clearCode) {
-                    dict.push(dict[last].concat(dict[code][0]));
-                }
-            }
-            else {
-                if (code !== dict.length) throw new Error('Invalid LZW code.');
-                dict.push(dict[last].concat(dict[last][0]));
-            }
-            output.push.apply(output, dict[code]);
-
-            if (dict.length === (1 << codeSize) && codeSize < 12) {
-                // If we're at the last code and codeSize is 12, the next code will be a clearCode, and it'll be 12 bits long.
-                codeSize++;
-            }
-        }
-
-        // I don't know if this is technically an error, but some GIFs do it.
-        //if (Math.ceil(pos / 8) !== data.length) throw new Error('Extraneous LZW bytes.');
-        return output;
-    };
-
-
-    // The actual parsing; returns an object with properties.
-    var parseGIF = function (st, handler) {
-        handler || (handler = {});
-
-        // LZW (GIF-specific)
-        var parseCT = function (entries) { // Each entry is 3 bytes, for RGB.
-            var ct = [];
-            for (var i = 0; i < entries; i++) {
-                ct.push(st.readBytes(3));
-            }
-            return ct;
-        };
-
-        var readSubBlocks = function () {
-            var size, data;
-            data = '';
-            do {
-                size = st.readByte();
-                data += st.read(size);
-            } while (size !== 0);
-            return data;
-        };
-
-        var parseHeader = function () {
-            var hdr = {};
-            hdr.sig = st.read(3);
-            hdr.ver = st.read(3);
-            if (hdr.sig !== 'GIF') throw new Error('Not a GIF file.'); // XXX: This should probably be handled more nicely.
-            hdr.width = st.readUnsigned();
-            hdr.height = st.readUnsigned();
-
-            var bits = byteToBitArr(st.readByte());
-            hdr.gctFlag = bits.shift();
-            hdr.colorRes = bitsToNum(bits.splice(0, 3));
-            hdr.sorted = bits.shift();
-            hdr.gctSize = bitsToNum(bits.splice(0, 3));
-
-            hdr.bgColor = st.readByte();
-            hdr.pixelAspectRatio = st.readByte(); // if not 0, aspectRatio = (pixelAspectRatio + 15) / 64
-            if (hdr.gctFlag) {
-                hdr.gct = parseCT(1 << (hdr.gctSize + 1));
-            }
-            handler.hdr && handler.hdr(hdr);
-        };
-
-        var parseExt = function (block) {
-            var parseGCExt = function (block) {
-                var blockSize = st.readByte(); // Always 4
-                var bits = byteToBitArr(st.readByte());
-                block.reserved = bits.splice(0, 3); // Reserved; should be 000.
-                block.disposalMethod = bitsToNum(bits.splice(0, 3));
-                block.userInput = bits.shift();
-                block.transparencyGiven = bits.shift();
-
-                block.delayTime = st.readUnsigned();
-
-                block.transparencyIndex = st.readByte();
-
-                block.terminator = st.readByte();
-
-                handler.gce && handler.gce(block);
-            };
-
-            var parseComExt = function (block) {
-                block.comment = readSubBlocks();
-                handler.com && handler.com(block);
-            };
-
-            var parsePTExt = function (block) {
-                // No one *ever* uses this. If you use it, deal with parsing it yourself.
-                var blockSize = st.readByte(); // Always 12
-                block.ptHeader = st.readBytes(12);
-                block.ptData = readSubBlocks();
-                handler.pte && handler.pte(block);
-            };
-
-            var parseAppExt = function (block) {
-                var parseNetscapeExt = function (block) {
-                    var blockSize = st.readByte(); // Always 3
-                    block.unknown = st.readByte(); // ??? Always 1? What is this?
-                    block.iterations = st.readUnsigned();
-                    block.terminator = st.readByte();
-                    handler.app && handler.app.NETSCAPE && handler.app.NETSCAPE(block);
-                };
-
-                var parseUnknownAppExt = function (block) {
-                    block.appData = readSubBlocks();
-                    // FIXME: This won't work if a handler wants to match on any identifier.
-                    handler.app && handler.app[block.identifier] && handler.app[block.identifier](block);
-                };
-
-                var blockSize = st.readByte(); // Always 11
-                block.identifier = st.read(8);
-                block.authCode = st.read(3);
-                switch (block.identifier) {
-                    case 'NETSCAPE':
-                        parseNetscapeExt(block);
-                        break;
-                    default:
-                        parseUnknownAppExt(block);
-                        break;
-                }
-            };
-
-            var parseUnknownExt = function (block) {
-                block.data = readSubBlocks();
-                handler.unknown && handler.unknown(block);
-            };
-
-            block.label = st.readByte();
-            switch (block.label) {
-                case 0xF9:
-                    block.extType = 'gce';
-                    parseGCExt(block);
-                    break;
-                case 0xFE:
-                    block.extType = 'com';
-                    parseComExt(block);
-                    break;
-                case 0x01:
-                    block.extType = 'pte';
-                    parsePTExt(block);
-                    break;
-                case 0xFF:
-                    block.extType = 'app';
-                    parseAppExt(block);
-                    break;
-                default:
-                    block.extType = 'unknown';
-                    parseUnknownExt(block);
-                    break;
-            }
-        };
-
-        var parseImg = function (img) {
-            var deinterlace = function (pixels, width) {
-                // Of course this defeats the purpose of interlacing. And it's *probably*
-                // the least efficient way it's ever been implemented. But nevertheless...
-                var newPixels = new Array(pixels.length);
-                var rows = pixels.length / width;
-                var cpRow = function (toRow, fromRow) {
-                    var fromPixels = pixels.slice(fromRow * width, (fromRow + 1) * width);
-                    newPixels.splice.apply(newPixels, [toRow * width, width].concat(fromPixels));
-                };
-
-                // See appendix E.
-                var offsets = [0, 4, 2, 1];
-                var steps = [8, 8, 4, 2];
-
-                var fromRow = 0;
-                for (var pass = 0; pass < 4; pass++) {
-                    for (var toRow = offsets[pass]; toRow < rows; toRow += steps[pass]) {
-                        cpRow(toRow, fromRow)
-                        fromRow++;
-                    }
-                }
-
-                return newPixels;
-            };
-
-            img.leftPos = st.readUnsigned();
-            img.topPos = st.readUnsigned();
-            img.width = st.readUnsigned();
-            img.height = st.readUnsigned();
-
-            var bits = byteToBitArr(st.readByte());
-            img.lctFlag = bits.shift();
-            img.interlaced = bits.shift();
-            img.sorted = bits.shift();
-            img.reserved = bits.splice(0, 2);
-            img.lctSize = bitsToNum(bits.splice(0, 3));
-
-            if (img.lctFlag) {
-                img.lct = parseCT(1 << (img.lctSize + 1));
-            }
-
-            img.lzwMinCodeSize = st.readByte();
-
-            var lzwData = readSubBlocks();
-
-            img.pixels = lzwDecode(img.lzwMinCodeSize, lzwData);
-
-            if (img.interlaced) { // Move
-                img.pixels = deinterlace(img.pixels, img.width);
-            }
-
-            handler.img && handler.img(img);
-        };
-
-        var parseBlock = function () {
-            var block = {};
-            block.sentinel = st.readByte();
-
-            switch (String.fromCharCode(block.sentinel)) { // For ease of matching
-                case '!':
-                    block.type = 'ext';
-                    parseExt(block);
-                    break;
-                case ',':
-                    block.type = 'img';
-                    parseImg(block);
-                    break;
-                case ';':
-                    block.type = 'eof';
-                    handler.eof && handler.eof(block);
-                    break;
-                default:
-                    throw new Error('Unknown block: 0x' + block.sentinel.toString(16)); // TODO: Pad this with a 0.
-            }
-
-            if (block.type !== 'eof') setTimeout(parseBlock, 0);
-        };
-
-        var parse = function () {
-            parseHeader();
-            setTimeout(parseBlock, 0);
-        };
-
-        parse();
-    };
-
+    if (typeof exports === 'object') {
+        var Stream = require('./Stream.js');
+        var parseGIF = require('./parseGIF.js');
+    }
     var SuperGif = function ( opts ) {
         var options = {
             //viewport position
@@ -457,7 +115,7 @@
 
         var gif = options.gif;
         if (typeof options.auto_play == 'undefined')
-            options.auto_play = (!gif.getAttribute('rel:auto_play') || gif.getAttribute('rel:auto_play') == '1');
+            options.auto_play = (!gif.getAttribute('data-autoplay') || gif.getAttribute('data-autoplay') == '1');
 
         var onEndListener = (options.hasOwnProperty('on_end') ? options.on_end : null);
         var loopDelay = (options.hasOwnProperty('loop_delay') ? options.loop_delay : 0);
@@ -476,20 +134,41 @@
             frame = null;
         };
 
-        // XXX: There's probably a better way to handle catching exceptions when
-        // callbacks are involved.
+        var handler = function () {
+            return {
+                hdr: withProgress(doHdr),
+                gce: withProgress(doGCE),
+                com: withProgress(doNothing),
+                // I guess that's all for now.
+                app: {
+                    // TODO: Is there much point in actually supporting iterations?
+                    NETSCAPE: withProgress(doNothing)
+                },
+                img: withProgress(doImg, true),
+                eof: function (block) {
+                    pushFrame();
+                    doDecodeProgress(false);
+                    if ( ! (options.c_w && options.c_h) ) {
+                        canvas.width = hdr.width * get_canvas_scale();
+                        canvas.height = hdr.height * get_canvas_scale();
+                    }
+                    player.init();
+                    loading = false;
+                    if (load_callback) {
+                        load_callback(loadError, gif);
+                    }
+
+                }
+            };
+        };
+
         var doParse = function () {
             try {
-                parseGIF(stream, handler);
+                parseGIF(stream, handler());
             }
             catch (err) {
                 doLoadError('parse');
             }
-        };
-
-        var doText = function (text) {
-            toolbar.innerHTML = text; // innerText? Escaping? Whatever.
-            toolbar.style.visibility = 'visible';
         };
 
         var setSizes = function(w, h) {
@@ -536,17 +215,17 @@
                         width = canvas.width / get_canvas_scale();
                     }
                     //some debugging, draw rect around viewport
-                    if (false) {
-                        if (!ctx_scaled) {
-                            var l = options.vp_l, t = options.vp_t;
-                            var w = options.vp_w, h = options.vp_h;
-                        } else {
-                            var l = options.vp_l/get_canvas_scale(), t = options.vp_t/get_canvas_scale();
-                            var w = options.vp_w/get_canvas_scale(), h = options.vp_h/get_canvas_scale();
-                        }
-                        ctx.rect(l,t,w,h);
-                        ctx.stroke();
-                    }
+                    // if (false) {
+                    //     if(!ctx_scaled) {
+                    //         var l = options.vp_l, t = options.vp_t;
+                    //         var w = options.vp_w, h = options.vp_h;
+                    //     } else {
+                    //         var l = options.vp_l/get_canvas_scale(), t = options.vp_t/get_canvas_scale();
+                    //         var w = options.vp_w/get_canvas_scale(), h = options.vp_h/get_canvas_scale();
+                    //     }
+                    //     ctx.rect(l,t,w,h);
+                    //     ctx.stroke();
+                    // }
                 }
                 else {
                     top = (canvas.height - height) / (ctx_scaled ? get_canvas_scale() : 1);
@@ -601,10 +280,14 @@
 
         var pushFrame = function () {
             if (!frame) return;
-            frames.push({
-                            data: frame.getImageData(0, 0, hdr.width, hdr.height),
-                            delay: delay
-                        });
+            var newFrame = {
+                data: frame.getImageData(0, 0, hdr.width, hdr.height),
+                delay: delay
+            };
+            if (options.includeDataURL) {
+                newFrame.dataURL = tmpCanvas.toDataURL();
+            }
+            frames.push(newFrame);
             frameOffsets.push({ x: 0, y: 0 });
         };
 
@@ -639,9 +322,9 @@
                     // If we disposed every frame including first frame up to this point, then we have
                     // no composited frame to restore to. In this case, restore to background instead.
                     if (disposalRestoreFromIdx !== null) {
-                    	frame.putImageData(frames[disposalRestoreFromIdx].data, 0, 0);
+                        frame.putImageData(frames[disposalRestoreFromIdx].data, 0, 0);
                     } else {
-                    	frame.clearRect(lastImg.leftPos, lastImg.topPos, lastImg.width, lastImg.height);
+                        frame.clearRect(lastImg.leftPos, lastImg.topPos, lastImg.width, lastImg.height);
                     }
                 } else {
                     disposalRestoreFromIdx = currIdx - 1;
@@ -660,16 +343,19 @@
             //Get existing pixels for img region after applying disposal method
             var imgData = frame.getImageData(img.leftPos, img.topPos, img.width, img.height);
 
-            //apply color table colors
-            img.pixels.forEach(function (pixel, i) {
+             //apply color table colors
+            for (var i = 0; i < img.pixels.length; i++) {
+                var pixel = img.pixels[i];
                 // imgData.data === [R,G,B,A,R,G,B,A,...]
-                if (pixel !== transparency) {
-                    imgData.data[i * 4 + 0] = ct[pixel][0];
-                    imgData.data[i * 4 + 1] = ct[pixel][1];
-                    imgData.data[i * 4 + 2] = ct[pixel][2];
-                    imgData.data[i * 4 + 3] = 255; // Opaque.
-                }
-            });
+                  if (pixel !== transparency) {
+                    var pix = ct[pixel];
+                    var idx = i * 4;
+                    imgData.data[idx    ] = pix[0];
+                    imgData.data[idx + 1] = pix[1];
+                    imgData.data[idx + 2] = pix[2];
+                    imgData.data[idx + 3] = 255; // Opaque.
+                  }
+            }
 
             frame.putImageData(imgData, img.leftPos, img.topPos);
 
@@ -825,34 +511,6 @@
             };
         };
 
-
-        var handler = {
-            hdr: withProgress(doHdr),
-            gce: withProgress(doGCE),
-            com: withProgress(doNothing),
-            // I guess that's all for now.
-            app: {
-                // TODO: Is there much point in actually supporting iterations?
-                NETSCAPE: withProgress(doNothing)
-            },
-            img: withProgress(doImg, true),
-            eof: function (block) {
-                //toolbar.style.display = '';
-                pushFrame();
-                doDecodeProgress(false);
-                if ( ! (options.c_w && options.c_h) ) {
-                    canvas.width = hdr.width * get_canvas_scale();
-                    canvas.height = hdr.height * get_canvas_scale();
-                }
-                player.init();
-                loading = false;
-                if (load_callback) {
-                    load_callback(gif);
-                }
-
-            }
-        };
-
         var init = function () {
             var parent = gif.parentNode;
 
@@ -896,8 +554,11 @@
 
         var load_setup = function(callback) {
             if (loading) return false;
-            if (callback) load_callback = callback;
-            else load_callback = false;
+            if (callback) {
+                load_callback = callback;
+            } else {
+                load_callback = false;
+            }
 
             loading = true;
             frames = [];
@@ -960,7 +621,7 @@
                         this.response = new VBArray(this.responseText).toArray().map(String.fromCharCode).join('');
                     }
                     var data = this.response;
-                    if (data.toString().indexOf("ArrayBuffer") > 0) {
+                    if (data instanceof ArrayBuffer) {
                         data = new Uint8Array(data);
                     }
 
@@ -974,7 +635,7 @@
                 h.send();
             },
             load: function (callback) {
-                this.load_url(gif.getAttribute('rel:animated_src') || gif.src,callback);
+                this.load_url(gif.getAttribute('data-animated-src') || gif.src,callback);
             },
             load_raw: function(arr, callback) {
                 if (!load_setup(callback)) return;
