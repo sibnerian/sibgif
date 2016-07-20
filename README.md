@@ -20,21 +20,24 @@ There are also hosted demos at http://sibnerian.com/example.html, http://sibneri
 ### Example Usage:
 
 ```html
-		<img id="myImage" src="./example1_preview.gif" data-animated-source="./example1.gif"
-			width="360" height="360" data-autoplay="1" />
+<img id="myImage" src="./example1_preview.gif" data-animated-source="./example1.gif"
+	width="360" height="360" data-autoplay="1" />
 
-		<script type="text/javascript">
-			var gif = new SuperGif({
-				gif: document.getElementById('myImage')
-			});
-			gif.load(function (err) {
-				if (err) {
-					console.error(err);
-				} else {
-					console.log('Yay, the gif loaded!');
-				}
-			});
-		</script>
+<!-- load the library -->
+<script type="text/javascript" src="js/sibgif.min.js"></script>
+
+<script type="text/javascript">
+	var gif = new SuperGif({
+		gif: document.getElementById('myImage')
+	});
+	gif.load(function (err) {
+		if (err) {
+			console.error(err);
+		} else {
+			console.log('Yay, the gif loaded!');
+		}
+	});
+</script>
 ```
 
 ### Image tag attributes:
