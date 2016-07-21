@@ -1,0 +1,43 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<script type="text/javascript" src="../dist/sibgif.min.js"></script>
+    <script type="text/javascript" src="./js/async.js"></script>
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+		<title>
+			Example gif
+		</title>
+	</head>
+
+	<body>
+		<center>
+			<h1>Gifs will play when all images are loaded.</h1>
+			<img id="example2" data-animated-src="./example_gifs/deal_with_it.gif" data-autoplay="0" />
+      <img id="example1" data-animated-src="./example_gifs/inner_machinations_of_my_mind.gif" data-autoplay="0" />
+      <img id="example3" data-animated-src="./example_gifs/dat_boi.gif" data-autoplay="0" />
+			<br>
+			<script type="text/javascript">
+				var sup1 = new SuperGif({ gif: document.getElementById('example1'), includeDataURL: true } );
+				var sup2 = new SuperGif({ gif: document.getElementById('example2'), includeDataURL: true } );
+				var sup3 = new SuperGif({ gif: document.getElementById('example3'), includeDataURL: true } );
+
+        var supergifs = [sup1, sup2, sup3];
+        async.each(supergifs, function (sup, cb) {
+          sup.load(cb);
+        }, function (err) {
+          if (err) {
+            console.log(err);
+          } else {
+            supergifs.forEach(function (sup) {
+              sup.play();
+            });
+          }
+        });
+			</script>
+		</center>
+
+	</body>
+
+</html>
