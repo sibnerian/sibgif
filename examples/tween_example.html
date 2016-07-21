@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<script type="text/javascript" src="../dist/sibgif.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/gsap/1.18.5/TweenMax.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/ScrollMagic/2.0.5/ScrollMagic.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/ScrollMagic/2.0.5/plugins/debug.addIndicators.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/ScrollMagic/2.0.5/plugins/animation.gsap.min.js"></script>
+
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+		<title>
+			Example gif
+		</title>
+	</head>
+
+	<body>
+		<center>
+      <div style="padding-bottom: 500px;">
+        <h1 style="margin-bottom: 200px;">Tweening examples.</h1>
+        <img style="display: block; margin-bottom: 200px" id="example1" src="./example_gifs/inner_machinations_of_my_mind_preview.gif"/>
+
+        <img id="example2" data-animated-src="./example_gifs/sponge_rainbow.gif" data-autoplay="0" />
+
+      </div>
+			<script type="text/javascript">
+				var sup1 = new SuperGif({ url: './example_gifs/inner_machinations_of_my_mind.gif', includeDataURL: true } );
+				var sup2 = new SuperGif({ gif: document.getElementById('example2'), includeDataURL: false } );
+
+
+        var controller = new ScrollMagic.Controller();
+        // Example 1: Using dataURL and a 'url' property
+        // If you're experiencing weird artifacts with your canvas gifs, or you need to control the size -- this is the technique to use
+        sup1.load(function (err) {
+          if (err) {
+              console.error(err);
+            } else {
+              var obj = {frameNo: 0}; // this is the object that will be mutated by the tween
+              var targetImg = document.getElementById('example1');
+              var frames = sup1.get_frames();
+              var tween = (new TimelineMax()).to(obj, 1, {
+                frameNo: frames.length - 1,
+                roundProps: 'frameNo', 
+                repeat: 0,
+                immediateRender: true,
+                ease: Linear.easeNone,
+                onUpdate: function () {
+                  // update the src with the dataURL of the current frame
+                  targetImg.src = frames[obj.frameNo].dataURL;
+                }
+              });
+              var scene = new ScrollMagic.Scene({triggerElement: targetImg, duration: 200, triggerHook: 0.25})
+                .setTween(tween)
+                .addIndicators()
+                .addTo(controller);
+            }
+        });
+
+        // Example 2: Using the canvas
+        sup2.load(function (err, gif) {
+          if (err) {
+              console.error(err);
+            } else {
+              var obj = {frameNo: 0}; // this is the object that will be mutated by the tween
+              var frames = sup2.get_frames();
+              var tween = (new TimelineMax()).to(obj, 1, {
+                frameNo: frames.length - 1,
+                roundProps: 'frameNo', 
+                repeat: 0,
+                immediateRender: true,
+                ease: Linear.easeNone,
+                onUpdate: function () {
+                  sup2.move_to(obj.frameNo);
+                }
+              });
+              var scene = new ScrollMagic.Scene({triggerElement: document.getElementsByTagName('canvas')[0], duration: 200, triggerHook: 0.25, offset: -50})
+                .setTween(tween)
+                .addIndicators()
+                .addTo(controller);
+            }
+        });
+			</script>
+		</center>
+
+	</body>
+
+</html>

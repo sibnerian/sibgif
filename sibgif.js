@@ -23,7 +23,8 @@
 
 	Constructor options args
 
-		gif 				Required. The DOM element of an img tag.
+		gif 				Required\*. The DOM element of an img tag.
+        url                 Required\*. The URL of the image to load. **Note:** either gif or url must be defined. 
 		loop_mode			Optional. Setting this to false will force disable looping of the gif.
 		auto_play 			Optional. Same as the data-autoplay attribute above, this arg overrides the img tag info.
 		max_width			Optional. Scale images over max_width down to max_width. Helpful with mobile.
@@ -114,6 +115,10 @@
         var frameOffsets = []; // elements have .x and .y properties
 
         var gif = options.gif;
+        if (typeof options.gif == 'undefined' && !!options.url) {
+            gif = document.createElement('img');
+            gif.src = options.url;
+        }
         if (typeof options.auto_play == 'undefined')
             options.auto_play = (!gif.getAttribute('data-autoplay') || gif.getAttribute('data-autoplay') == '1');
 
