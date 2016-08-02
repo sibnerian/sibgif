@@ -13,7 +13,7 @@ See `tween_example.html` for a cool application of the library: gifs that play/r
 
 Please note: examples must be loaded via a webserver, not directly from disk. I.e. http://localhost/sibgif/example.html NOT file:///sibgif/example.html. See the same-domain origin caveat at the bottom of this document for more information. I use [http-server](https://github.com/indexzero/http-server) to do this, and you should too!
 
-There are also hosted demos at http://sibnerian.com/example.html, http://sibnerian.com/async_example.html, and http://sibnerian.com/tween_example.html.
+There are also hosted demos at http://www.sibnerian.com/sibgif/examples/example.html, http://www.sibnerian.com/sibgif/examples/async_example.html, and http://www.sibnerian.com/sibgif/examples/tween_example.html.
 
 ## Class: SuperGif
 
