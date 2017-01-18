@@ -76,7 +76,7 @@
 }(this, function () {
     if (typeof exports === 'object') {
         var Stream = require('./Stream.js');
-        var parseGIF = require('./parseGIF.js');
+        var parseGIF = require('./parseGif.js');
     }
     var SuperGif = function ( opts ) {
         var options = {
